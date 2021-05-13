@@ -1,0 +1,150 @@
+##########################################################################
+#                                                                        #
+#               Deploy and test database package                         #
+#                                                                        #
+##########################################################################
+
+- stage: "Release"
+    displayName: "Deploy database"
+    dependsOn: "Build"
+    jobs:
+
+      ##########################################################################
+      #       Job: Deploy package                                              #
+      ##########################################################################
+
+      - job:
+        displayName: "Deploy database"
+        pool: Default
+
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download artifact"
+            inputs:
+              buildType: "current"
+              artifactName: $(artifactName)
+              targetPath: '$(Pipeline.Workspace)\package'
+          - task: AzurePowerShell@5
+            displayName: "Deploy database package"
+            inputs:
+              azureSubscription: "ServiceConnection"
+              ScriptType: "InlineScript"
+              Inline: |
+                # Install the module
+                Install-Module dbops -Force -Scope CurrentUser
+
+                # Get current hosted agent ip
+                $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
+
+                # Temporary add ip
+                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
+                if ($azSqlFirwallRule) {
+                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                }
+                New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
+                    -ServerName $(azSQLServerName) `
+                    -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
+
+                Install-DBOPackage -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Credential $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
+
+                # Always remove firewall rule
+                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName) -Force
+
+              azurePowerShellVersion: "LatestVersion"
+
+##########################################################################
+#                                                                        #
+#               Test database package                                    #
+#                                                                        #
+##########################################################################
+
+  - stage: "Test"
+    displayName: "Run test(s)"
+    dependsOn: "Release"
+
+    jobs:
+
+      ##########################################################################
+      #       Job: Test  package                                               #
+      ##########################################################################
+
+      - job:
+        displayName: "Run test(s)"
+        pool: Default
+
+        steps:
+          - task: PowerShell@2
+            inputs:
+              targetType: "inline"
+              script: |
+                # Initiate variables
+                $instance = "$(azSqlServerName)" + ".database.windows.net"
+                $database = "$(azSqlDatabaseName)"
+                $userName = "$(adminSqlLogin)"
+                $password = "$(adminSqlPassword)"
+
+                # Specify the data for container
+                $Data = @{
+                    instance = $instance
+                    database = $database
+                    userName = $userName
+                    password = $password
+                    procedureName = 'AddInventoryRecords'
+                }
+                
+                # Create container
+                $container = New-PesterContainer -Path .\tests\ -Data $data
+
+                # Invoke with CI
+                Invoke-Pester -Container $Container -CI
+          - task: PublishTestResults@2
+            inputs:
+              testResultsFormat: 'NUnit'
+              testResultsFiles: '**/testResults.xml'
+              failTaskOnFailedTests: true
+              testRunTitle: 'Tests'
+
+##########################################################################
+#                                                                        #
+#               Post commit                                              #
+#                                                                        #
+##########################################################################
+
+  - stage: "Commit"
+    displayName: "Post commit"
+    dependsOn: "Test"
+    
+    jobs:
+
+      ##########################################################################
+      #       Job: Post commit package                                         #
+      ##########################################################################
+      
+      - job:
+        displayName: "Commit package"
+        pool: Default
+        
+        steps:
+          - checkout: self
+            clean: true
+            persistCredentials: true
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download artifact"
+            inputs:
+              buildType: "current"
+              artifactName: $(artifactName)
+              targetPath: '$(Pipeline.Workspace)\package'
+          - task: PowerShell@2
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Copy the artifact to working directory
+                Copy-Item -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Destination $(System.DefaultWorkingDirectory)\package\$(artifactName).zip
+                # Set the user details for Git
+                git config --global user.email "AzureDevOps@azure.com"
+                git config --global user.name "Agent"
+                
+                # Add the package to repos
+                git add .
+                git commit -m "Package updated with version: $(Build.BuildNumber)"
+                git push origin HEAD:master
