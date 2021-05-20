@@ -77,6 +77,9 @@
             inputs:
               targetType: "inline"
               script: |
+                # Install required module
+                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery
+                
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
                 $database = "$(azSqlDatabaseName)"
