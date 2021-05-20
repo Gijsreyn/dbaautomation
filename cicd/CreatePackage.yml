@@ -16,8 +16,9 @@
       
       - job:
         displayName: "Build database package"
-        pool: Default
-
+        pool: 
+          vmImage: 'windows-latest'
+          
         steps:
           - task: PowerShell@2
             displayName: "Create database package"
