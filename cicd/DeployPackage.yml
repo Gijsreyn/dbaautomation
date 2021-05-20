@@ -15,7 +15,8 @@
 
       - job:
         displayName: "Deploy database"
-        pool: Default
+        pool: 
+          vmImage: 'windows-latest'
 
         steps:
           - task: DownloadPipelineArtifact@2
@@ -70,7 +71,8 @@
 
       - job:
         displayName: "Run test(s)"
-        pool: Default
+        pool: 
+          vmImage: 'windows-latest'    
 
         steps:
           - task: PowerShell@2
@@ -106,48 +108,3 @@
               testResultsFiles: '**/testResults.xml'
               failTaskOnFailedTests: true
               testRunTitle: 'Tests'
-
-##########################################################################
-#                                                                        #
-#               Post commit                                              #
-#                                                                        #
-##########################################################################
-
-  - stage: "Commit"
-    displayName: "Post commit"
-    dependsOn: "Test"
-    
-    jobs:
-
-      ##########################################################################
-      #       Job: Post commit package                                         #
-      ##########################################################################
-      
-      - job:
-        displayName: "Commit package"
-        pool: Default
-        
-        steps:
-          - checkout: self
-            clean: true
-            persistCredentials: true
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download artifact"
-            inputs:
-              buildType: "current"
-              artifactName: $(artifactName)
-              targetPath: '$(Pipeline.Workspace)\package'
-          - task: PowerShell@2
-            inputs:
-              targetType: 'inline'
-              script: |
-                # Copy the artifact to working directory
-                Copy-Item -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Destination $(System.DefaultWorkingDirectory)\package\$(artifactName).zip
-                # Set the user details for Git
-                git config --global user.email "AzureDevOps@azure.com"
-                git config --global user.name "Agent"
-                
-                # Add the package to repos
-                git add .
-                git commit -m "Package updated with version: $(Build.BuildNumber)"
-                git push origin HEAD:master
