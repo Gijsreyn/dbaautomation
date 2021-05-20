@@ -4,11 +4,6 @@
 
 name: $(majorVersion).$(minorVersion).$(patch)
 
-trigger:
-  paths:
-    include:
-      - opsscripts/*
-
 ##########################################################################
 #       Variables                                                        #
 ##########################################################################
@@ -43,7 +38,8 @@ stages:
 
       - job: "Database"
         displayName: "Create database"
-        pool: Default
+        pool: 
+          vmImage: 'windows-latest'
 
         steps:
           - task: AzurePowerShell@5
