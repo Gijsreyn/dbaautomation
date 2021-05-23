@@ -60,7 +60,7 @@ stages:
                   $params = @{
                   resourceGroupName = '$(rgName)'
                   sqlServerName = '$(azSQLServerName)'
-                  sqlDatabaseName = '$(azSqlDatabaseName'
+                  sqlDatabaseName = '$(azSqlDatabaseName)'
                   publicIP = '$(ip)'
                   sqlAdministrator = '$(adminSqlLogin)'
                   sqlPassword = '$(adminSqlPassword)'
