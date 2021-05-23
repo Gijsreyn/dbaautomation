@@ -196,8 +196,8 @@ stages:
               targetType: "inline"
               script: |
                 # Install required module
-                Install-Module -Name dbatools -Scope CurrentUser
-		            Install-Module -Name az -Scope CurrentUser
+                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery
+                Install-Module -Name az -Scope CurrentUser
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
@@ -212,7 +212,7 @@ stages:
                   sqlAdministrator = $userName
                   sqlPassword = $password
                 }
-                          
+                
                 # Create container
                 $container = New-PesterContainer -Path .\tests\ -Data $data
 
