@@ -204,8 +204,6 @@ stages:
               Inline: |
                 # Install required module
                 Install-Module -Name dbatools -Scope CurrentUser -Force
-                Get-Module -Name Pester -ListAvailable 
-                Get-AzResource -ResourceGroupName "rg-dbaautomation"
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
