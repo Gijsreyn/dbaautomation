@@ -48,7 +48,10 @@ stages:
               azureSubscription: "ServiceConnection"
               ScriptType: "InlineScript"
               Inline: |
+                  # Dot source the script to load the function
                   . ./psscripts/New-AzureSqlDatabase.ps1
+
+                  # Specify the parameters for the script
                   $params = @{
                   resourceGroupName = '$(rgName)'
                   sqlServerName = '$(azSQLServerName)'
