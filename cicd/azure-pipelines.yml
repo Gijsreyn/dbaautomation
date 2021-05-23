@@ -98,7 +98,7 @@ stages:
                 Install-Module dbops -Force -Scope CurrentUser
 
                 # Create the package
-                $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\opsscripts -Version 1.0
+                $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\sqlscripts -Version 1.0
 
                 # Update the build number from DBOPackage
                 Write-Host "##vso[build.updatebuildnumber]$($build.Version)"
