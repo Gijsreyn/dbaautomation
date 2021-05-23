@@ -32,148 +32,148 @@ variables:
 ##########################################################################
 
 stages:
-#   - stage: "CreateDB"
-#     displayName: "Create database"
-#     jobs:
+  - stage: "CreateDB"
+    displayName: "Create database"
+    jobs:
 
-#       ##########################################################################
-#       #       Job: Create Azure SQL                                            #
-#       ##########################################################################
+      ##########################################################################
+      #       Job: Create Azure SQL                                            #
+      ##########################################################################
 
-#       - job: "Database"
-#         displayName: "Create database"
-#         pool: 
-#           vmImage: 'windows-latest'
+      - job: "Database"
+        displayName: "Create database"
+        pool: 
+          vmImage: 'windows-latest'
 
-#         steps:
-#           - task: AzurePowerShell@5
-#             name: "Database"
-#             displayName: "Create Azure SQL database"
-#             inputs:
-#               azureSubscription: "ServiceConnection"
-#               ScriptType: "InlineScript"
-#               Inline: |
-#                   # Dot source the script to load the function
-#                   . ./psscripts/New-AzureSqlDatabase.ps1
+        steps:
+          - task: AzurePowerShell@5
+            name: "Database"
+            displayName: "Create Azure SQL database"
+            inputs:
+              azureSubscription: "ServiceConnection"
+              ScriptType: "InlineScript"
+              Inline: |
+                  # Dot source the script to load the function
+                  . ./psscripts/New-AzureSqlDatabase.ps1
 
-#                   # Specify the parameters for the script
-#                   $params = @{
-#                   resourceGroupName = '$(rgName)'
-#                   sqlServerName = '$(azSQLServerName)'
-#                   sqlDatabaseName = '$(azSqlDatabaseName)'
-#                   publicIP = '$(ip)'
-#                   sqlAdministrator = '$(adminSqlLogin)'
-#                   sqlPassword = '$(adminSqlPassword)'
-#                   }
-#                   New-AzureSqlDatabase @params
+                  # Specify the parameters for the script
+                  $params = @{
+                  resourceGroupName = '$(rgName)'
+                  sqlServerName = '$(azSQLServerName)'
+                  sqlDatabaseName = '$(azSqlDatabaseName)'
+                  publicIP = '$(ip)'
+                  sqlAdministrator = '$(adminSqlLogin)'
+                  sqlPassword = '$(adminSqlPassword)'
+                  }
+                  New-AzureSqlDatabase @params
                 
-#               azurePowerShellVersion: "LatestVersion"
+              azurePowerShellVersion: "LatestVersion"
 
-# ##########################################################################
-# #                                                                        #
-# #               Create package and Publish artifact                      #
-# #                                                                        #
-# ##########################################################################
+##########################################################################
+#                                                                        #
+#               Create package and Publish artifact                      #
+#                                                                        #
+##########################################################################
 
-#   - stage: "Build"
-#     displayName: "Build package"
-#     dependsOn: "CreateDB"
+  - stage: "Build"
+    displayName: "Build package"
+    dependsOn: "CreateDB"
       
-#     jobs:
+    jobs:
 
-#       ##########################################################################
-#       #       Job: Create package and artifact                                 #
-#       ##########################################################################
+      ##########################################################################
+      #       Job: Create package and artifact                                 #
+      ##########################################################################
       
-#       - job:
-#         displayName: "Build database package"
-#         pool: 
-#           vmImage: 'windows-latest'
+      - job:
+        displayName: "Build database package"
+        pool: 
+          vmImage: 'windows-latest'
           
-#         steps:
-#           - task: PowerShell@2
-#             displayName: "Create database package"
-#             inputs:
-#               targetType: "inline"
-#               script: |
-#                 # Get the connection string
-#                 $connectionString = "$(azSQLServerName)" + ".database.windows.net"
+        steps:
+          - task: PowerShell@2
+            displayName: "Create database package"
+            inputs:
+              targetType: "inline"
+              script: |
+                # Get the connection string
+                $connectionString = "$(azSQLServerName)" + ".database.windows.net"
 
-#                 # Install module 
-#                 Install-Module dbops -Force -Scope CurrentUser
+                # Install module 
+                Install-Module dbops -Force -Scope CurrentUser
 
-#                 # Make sure package folder is present always
-#                 New-Item -Path package -ItemType Directory -Force
+                # Make sure package folder is present always
+                New-Item -Path package -ItemType Directory -Force
 
-#                 # Create the package
-#                 $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\sqlscripts -Version 1.0
+                # Create the package
+                $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\sqlscripts -Version 1.0
 
-#                 # Update the build number from DBOPackage
-#                 Write-Host "##vso[build.updatebuildnumber]$($build.Version)"
+                # Update the build number from DBOPackage
+                Write-Host "##vso[build.updatebuildnumber]$($build.Version)"
 
-#                 # Update the config
-#                 Update-DBOConfig $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -Configuration @{ SqlInstance = "$connectionString"; Database = "$(azSqlDatabaseName)"; }
-#           - task: PublishPipelineArtifact@1
-#             inputs:
-#               targetPath: '$(System.DefaultWorkingDirectory)\package\$(artifactName).zip'
-#               artifact: $(artifactName)
-#               publishLocation: "pipeline"
+                # Update the config
+                Update-DBOConfig $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -Configuration @{ SqlInstance = "$connectionString"; Database = "$(azSqlDatabaseName)"; }
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)\package\$(artifactName).zip'
+              artifact: $(artifactName)
+              publishLocation: "pipeline"
 
-# ##########################################################################
-# #                                                                        #
-# #               Deploy and test database package                         #
-# #                                                                        #
-# ##########################################################################
+##########################################################################
+#                                                                        #
+#               Deploy and test database package                         #
+#                                                                        #
+##########################################################################
 
-#   - stage: "Release"
-#     displayName: "Deploy database"
-#     dependsOn: "Build"
-#     jobs:
+  - stage: "Release"
+    displayName: "Deploy database"
+    dependsOn: "Build"
+    jobs:
 
-#       ##########################################################################
-#       #       Job: Deploy package                                              #
-#       ##########################################################################
+      ##########################################################################
+      #       Job: Deploy package                                              #
+      ##########################################################################
 
-#       - job:
-#         displayName: "Deploy database"
-#         pool: 
-#           vmImage: 'windows-latest'
+      - job:
+        displayName: "Deploy database"
+        pool: 
+          vmImage: 'windows-latest'
 
-#         steps:
-#           - task: DownloadPipelineArtifact@2
-#             displayName: "Download artifact"
-#             inputs:
-#               buildType: "current"
-#               artifactName: $(artifactName)
-#               targetPath: '$(Pipeline.Workspace)\package'
-#           - task: AzurePowerShell@5
-#             displayName: "Deploy database package"
-#             inputs:
-#               azureSubscription: "ServiceConnection"
-#               ScriptType: "InlineScript"
-#               Inline: |
-#                 # Install the module
-#                 Install-Module dbops -Force -Scope CurrentUser
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download artifact"
+            inputs:
+              buildType: "current"
+              artifactName: $(artifactName)
+              targetPath: '$(Pipeline.Workspace)\package'
+          - task: AzurePowerShell@5
+            displayName: "Deploy database package"
+            inputs:
+              azureSubscription: "ServiceConnection"
+              ScriptType: "InlineScript"
+              Inline: |
+                # Install the module
+                Install-Module dbops -Force -Scope CurrentUser
 
-#                 # Get current hosted agent ip
-#                 $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
+                # Get current hosted agent ip
+                $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
 
-#                 # Temporary add ip
-#                 $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
-#                 if ($azSqlFirwallRule) {
-#                   Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
-#                 }
-#                 New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
-#                     -ServerName $(azSQLServerName) `
-#                     -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
+                # Temporary add ip
+                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
+                if ($azSqlFirwallRule) {
+                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                }
+                New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
+                    -ServerName $(azSQLServerName) `
+                    -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
 
-#                 # Install the database package
-#                 Install-DBOPackage -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Credential $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
+                # Install the database package
+                Install-DBOPackage -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Credential $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
 
-#                 # Remove the temporary firewall rule
-#                 Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                # Remove the temporary firewall rule
+                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
 
-#               azurePowerShellVersion: "LatestVersion"
+              azurePowerShellVersion: "LatestVersion"
 
 ##########################################################################
 #                                                                        #

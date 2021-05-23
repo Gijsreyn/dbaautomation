@@ -27,7 +27,7 @@ Describe "Check inventory table" {
         $credPwd = ConvertTo-SecureString $sqlPassword -AsPlainText -Force
         $credential = New-Object System.Management.Automation.PSCredential ($sqlAdministrator, $credPwd)
         $query = "SELECT [ServerName], [Description] FROM dbo.DatabaseInventory"
-        $result = Invoke-DbaQuery -SqlInstance $sqlServerName -Database $sqlDatabaseName -SqlCredential $credential -Query $query
+        $result = (Invoke-DbaQuery -SqlInstance $sqlServerName -Database $sqlDatabaseName -SqlCredential $credential -Query $query)[0]
         $result.Count | Should -BeGreaterOrEqual 1
     }
 }
