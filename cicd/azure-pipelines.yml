@@ -1,5 +1,5 @@
 ##########################################################################
-# Name plus CI trigger on all files that get added in opsscripts folder  #
+# Name                                                                   #
 ##########################################################################
 
 name: $(majorVersion).$(minorVersion).$(patch)
@@ -7,18 +7,17 @@ name: $(majorVersion).$(minorVersion).$(patch)
 ##########################################################################
 #       Variables                                                        #
 ##########################################################################
-
 variables:
-  rgName: "rg-dbaautomation"          #   The Resource Group name     #  
-  rgLocation: "westeurope"            #   The region location         #
-  ip: ""                              #   The public IP address       # 
-  azSqlDatabaseName: "Estate"         #   The Azure SQL database name #
-  azSQLServerName: "sqlestate"        #   The Azure SQL server name   #
-  adminSqlLogin: "SqlAdministrator"   #   The Azure SQL login         #
   majorVersion: 1     
   minorVersion: 0
   patch: $[counter(format('{0}.{1}', variables['MajorVersion'], variables['MinorVersion']), 0)]
   buildNumber: $(MajorVersion).$(MinorVersion).$(Patch)
+  rgName: "rg-dbaautomation"          #   The Resource Group name     #  
+  rgLocation: "westeurope"            #   The region location         #
+  ip: "84.107.159.55"                 #   The public IP address       # 
+  azSqlDatabaseName: "Estate"         #   The Azure SQL database name #
+  azSQLServerName: "sqlestate"        #   The Azure SQL server name   #
+  adminSqlLogin: "SqlAdministrator"   #   The Azure SQL login         #
   artifactName: "DBOPackage"          #   The artifact name           #
 
 ##########################################################################
@@ -49,35 +48,20 @@ stages:
               azureSubscription: "ServiceConnection"
               ScriptType: "InlineScript"
               Inline: |
-                $rg = Get-AzResourceGroup -Name $(rgName) -ErrorAction SilentlyContinue
-                if (-not $rg) {
-                    New-AzResourceGroup -Name $(rgName) -Location "$(rgLocation)"
-                }
-                                                
-                $azSQLServerName = "$(azSQLServerName)"
-                $azSqlServer = Get-AzSqlServer -ServerName $azSQLServerName 
-                if (-not $azSqlServer) {
-                    $azSqlServer = New-AzSqlServer -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -Location "$(rgLocation)" `
-                    -SqlAdministratorCredentials $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
-                }
+                  # Dot source the script to load the function
+                  . ./psscripts/New-AzureSqlDatabase.ps1
+
+                  # Specify the parameters for the script
+                  $params = @{
+                  resourceGroupName = '$(rgName)'
+                  sqlServerName = '$(azSQLServerName)'
+                  sqlDatabaseName = '$(azSqlDatabaseName'
+                  publicIP = '$(ip)'
+                  sqlAdministrator = '$(adminSqlLogin)'
+                  sqlPassword = '$(adminSqlPassword)'
+                  }
+                  New-AzureSqlDatabase @params
                 
-                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'FirewallRule_AccessRule' -ServerName $azSqlServerName -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
-                if (-not $azSqlFirwallRule) {
-                    # Create a server firewall rule that allows access from the specified IP range
-                    $serverFirewallRule = New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -FirewallRuleName "FirewallRule_AccessRule" -StartIpAddress $(ip) -EndIpAddress $(ip)
-                }
-                                
-                $azSqlDatabase = Get-AzSqlDatabase -DatabaseName $(azSqlDatabaseName) -ServerName $azSQLServerName -ResourceGroupName $(rgName) -ErrorAction  SilentlyContinue
-                if (-not $azSqlDatabase) {
-                    $database = New-AzSqlDatabase  -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -DatabaseName $(azSqlDatabaseName) `
-                    -Edition "Basic"    
-                }
               azurePowerShellVersion: "LatestVersion"
 
 ##########################################################################
@@ -113,8 +97,11 @@ stages:
                 # Install module 
                 Install-Module dbops -Force -Scope CurrentUser
 
+                # Make sure package folder is present always
+                New-Item -Path package -ItemType Directory -Force
+
                 # Create the package
-                $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\opsscripts -Version 1.0
+                $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\sqlscripts -Version 1.0
 
                 # Update the build number from DBOPackage
                 Write-Host "##vso[build.updatebuildnumber]$($build.Version)"
@@ -127,13 +114,13 @@ stages:
               artifact: $(artifactName)
               publishLocation: "pipeline"
 
-##########################################################################
+  ##########################################################################
 #                                                                        #
 #               Deploy and test database package                         #
 #                                                                        #
 ##########################################################################
 
-- stage: "Release"
+  - stage: "Release"
     displayName: "Deploy database"
     dependsOn: "Build"
     jobs:
@@ -181,104 +168,3 @@ stages:
                 Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName) -Force
 
               azurePowerShellVersion: "LatestVersion"
-
-##########################################################################
-#                                                                        #
-#               Test database package                                    #
-#                                                                        #
-##########################################################################
-
-  - stage: "Test"
-    displayName: "Run test(s)"
-    dependsOn: "Release"
-
-    jobs:
-
-      ##########################################################################
-      #       Job: Test  package                                               #
-      ##########################################################################
-
-      - job:
-        displayName: "Run test(s)"
-        pool: 
-          vmImage: 'windows-latest'    
-
-        steps:
-          - task: PowerShell@2
-            inputs:
-              targetType: "inline"
-              script: |
-                # Install required module
-                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery
-                
-                # Initiate variables
-                $instance = "$(azSqlServerName)" + ".database.windows.net"
-                $database = "$(azSqlDatabaseName)"
-                $userName = "$(adminSqlLogin)"
-                $password = "$(adminSqlPassword)"
-
-                # Specify the data for container
-                $Data = @{
-                    instance = $instance
-                    database = $database
-                    userName = $userName
-                    password = $password
-                    procedureName = 'AddInventoryRecords'
-                }
-                
-                # Create container
-                $container = New-PesterContainer -Path .\tests\ -Data $data
-
-                # Invoke with CI
-                Invoke-Pester -Container $Container -CI
-          - task: PublishTestResults@2
-            inputs:
-              testResultsFormat: 'NUnit'
-              testResultsFiles: '**/testResults.xml'
-              failTaskOnFailedTests: true
-              testRunTitle: 'Tests'
-
-##########################################################################
-#                                                                        #
-#               Post commit                                              #
-#                                                                        #
-##########################################################################
-
-  - stage: "Commit"
-    displayName: "Post commit"
-    dependsOn: "Test"
-    
-    jobs:
-
-      ##########################################################################
-      #       Job: Post commit package                                         #
-      ##########################################################################
-      
-      - job:
-        displayName: "Commit package"
-        pool: Default
-        
-        steps:
-          - checkout: self
-            clean: true
-            persistCredentials: true
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download artifact"
-            inputs:
-              buildType: "current"
-              artifactName: $(artifactName)
-              targetPath: '$(Pipeline.Workspace)\package'
-          - task: PowerShell@2
-            inputs:
-              targetType: 'inline'
-              script: |
-                # Copy the artifact to working directory
-                Copy-Item -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Destination $(System.DefaultWorkingDirectory)\package\$(artifactName).zip
-                # Set the user details for Git
-                git config --global user.email "AzureDevOps@azure.com"
-                git config --global user.name "Agent"
-                
-                # Add the package to repos
-                git add .
-                git commit -m "Package updated with version: $(Build.BuildNumber)"
-                git push origin HEAD:master
