@@ -3,9 +3,9 @@ $resources = Get-AzResource -ResourceGroupName $resourcegroup
 
 Describe 'Azure Resources' {
     foreach ($resource in $resources) {       
-        
+        $location = $resource.Location
         It "$($resource.Location) is westeurope" {
-            $resource.Location | Should -Be 'westeurope'            
+            $location | Should -Be 'westeurope'       
         }
     }
 }
