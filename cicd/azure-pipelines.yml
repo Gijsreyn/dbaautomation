@@ -196,7 +196,8 @@ stages:
               targetType: "inline"
               script: |
                 # Install required module
-                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery
+                Install-Module -Name dbatools -Scope CurrentUser
+		            Install-Module -Name az -Scope CurrentUser
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
@@ -206,13 +207,12 @@ stages:
 
                 # Specify the data for container
                 $Data = @{
-                    instance = $instance
-                    database = $database
-                    userName = $userName
-                    password = $password
-                    procedureName = 'AddInventoryRecords'
+                  sqlServerName = $instance
+                  sqlDatabaseName = $database
+                  sqlAdministrator = $userName
+                  sqlPassword = $password
                 }
-                
+                          
                 # Create container
                 $container = New-PesterContainer -Path .\tests\ -Data $data
 
