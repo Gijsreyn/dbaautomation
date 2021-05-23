@@ -202,7 +202,7 @@ stages:
               script: |
                 # Install required module
                 Install-Module -Name dbatools -Scope CurrentUser -Force 
-                Install-Module -Name az -Scope CurrentUser -Force
+                Install-Module -Name az -Scope CurrentUser -Force -AllowClobber
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
