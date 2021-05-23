@@ -12,3 +12,51 @@ variables:
   minorVersion: 0
   patch: $[counter(format('{0}.{1}', variables['MajorVersion'], variables['MinorVersion']), 0)]
   buildNumber: $(MajorVersion).$(MinorVersion).$(Patch)
+  rgName: "rg-dbaautomation"          #   The Resource Group name     #  
+  rgLocation: "westeurope"            #   The region location         #
+  ip: ""                              #   The public IP address       # 
+  azSqlDatabaseName: "Estate"         #   The Azure SQL database name #
+  azSQLServerName: "sqlestate"        #   The Azure SQL server name   #
+  adminSqlLogin: "SqlAdministrator"   #   The Azure SQL login         #
+  artifactName: "DBOPackage"          #   The artifact name           #
+
+##########################################################################
+#                                                                        #
+#               Deploy Azure SQL in Azure                                #
+#                                                                        #
+##########################################################################
+
+stages:
+  - stage: "CreateDB"
+    displayName: "Create database"
+    jobs:
+
+      ##########################################################################
+      #       Job: Create Azure SQL                                            #
+      ##########################################################################
+
+      - job: "Database"
+        displayName: "Create database"
+        pool: 
+          vmImage: 'windows-latest'
+
+        steps:
+          - task: AzurePowerShell@5
+            name: "Database"
+            displayName: "Create Azure SQL database"
+            inputs:
+              azureSubscription: "ServiceConnection"
+              ScriptType: "InlineScript"
+              Inline: |
+                  . ./psscripts/New-AzureSqlDatabase.ps1
+                  $params = @{
+                  resourceGroupName = '$(rgName)'
+                  sqlServerName = '$(azSQLServerName)'
+                  sqlDatabaseName = '$(azSqlDatabaseName'
+                  publicIP = '$(ip)'
+                  sqlAdministrator = '$(adminSqlLogin)'
+                  sqlPassword = '$(adminSqlPassword)'
+                  }
+                  New-AzureSqlDatabase @params
+                
+              azurePowerShellVersion: "LatestVersion"
