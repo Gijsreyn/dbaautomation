@@ -183,7 +183,7 @@ stages:
 
   - stage: "Test"
     displayName: "Run test(s)"
-    dependsOn: "Release"
+#    dependsOn: "Release"
 
     jobs:
 
