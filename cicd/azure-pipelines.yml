@@ -167,7 +167,11 @@ stages:
                     -ServerName $(azSQLServerName) `
                     -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
 
+                # Install the database package
                 Install-DBOPackage -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Credential $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
+
+                # Remove the temporary firewall rule
+                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
 
               azurePowerShellVersion: "LatestVersion"
 
@@ -207,6 +211,18 @@ stages:
                 $userName = "$(adminSqlLogin)"
                 $password = "$(adminSqlPassword)"
 
+                # Get current hosted agent ip
+                $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
+
+                # Temporary add ip
+                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
+                if ($azSqlFirwallRule) {
+                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                }
+                New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
+                    -ServerName $(azSQLServerName) `
+                    -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
+
                 # Specify the data for container
                 $Data = @{
                   sqlServerName = $instance
@@ -221,11 +237,9 @@ stages:
                 # Invoke with CI
                 Invoke-Pester -Container $Container -CI
 
-                # Rempove the temporary firewall rule
-                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
-                if ($azSqlFirwallRule) {
-                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
-                }
+                # Remove the temporary firewall rule
+                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                
               azurePowerShellVersion: 'LatestVersion'
                  
           - task: PublishTestResults@2
