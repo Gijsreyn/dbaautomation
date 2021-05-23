@@ -97,8 +97,13 @@ stages:
                 # Install module 
                 Install-Module dbops -Force -Scope CurrentUser
 
+                # Make sure package folder is present always
+                New-Item -Path package -ItemType Directory -Force
+
                 # Create the package
                 $build = Invoke-DBOPackageCI -Path $(System.DefaultWorkingDirectory)\package\$(artifactName).zip -ScriptPath .\sqlscripts -Version 1.0
+                
+                
 
                 # Update the build number from DBOPackage
                 Write-Host "##vso[build.updatebuildnumber]$($build.Version)"
@@ -110,58 +115,3 @@ stages:
               targetPath: '$(System.DefaultWorkingDirectory)\package\$(artifactName).zip'
               artifact: $(artifactName)
               publishLocation: "pipeline"
-
-##########################################################################
-#                                                                        #
-#               Deploy and test database package                         #
-#                                                                        #
-##########################################################################
-
-  - stage: "Release"
-    displayName: "Deploy database"
-    dependsOn: "Build"
-    jobs:
-
-      ##########################################################################
-      #       Job: Deploy package                                              #
-      ##########################################################################
-
-      - job:
-        displayName: "Deploy database"
-        pool: 
-          vmImage: 'windows-latest'
-
-        steps:
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download artifact"
-            inputs:
-              buildType: "current"
-              artifactName: $(artifactName)
-              targetPath: '$(Pipeline.Workspace)\package'
-          - task: AzurePowerShell@5
-            displayName: "Deploy database package"
-            inputs:
-              azureSubscription: "ServiceConnection"
-              ScriptType: "InlineScript"
-              Inline: |
-                # Install the module
-                Install-Module dbops -Force -Scope CurrentUser
-
-                # Get current hosted agent ip
-                $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
-
-                # Temporary add ip
-                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
-                if ($azSqlFirwallRule) {
-                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
-                }
-                New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
-                    -ServerName $(azSQLServerName) `
-                    -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
-
-                Install-DBOPackage -Path $(Pipeline.Workspace)\package\$(artifactName).zip -Credential $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
-
-                # Always remove firewall rule
-                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName) -Force
-
-              azurePowerShellVersion: "LatestVersion"
