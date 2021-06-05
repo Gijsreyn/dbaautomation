@@ -167,6 +167,7 @@ stages:
 #               Test database package                                    #
 #                                                                        #
 ##########################################################################
+
   - stage: "Test"
     displayName: "Run test(s)"
     dependsOn: "Release"
@@ -183,12 +184,13 @@ stages:
           vmImage: 'windows-latest'    
 
         steps:
-          - task: PowerShell@2
+          - task: AzurePowerShell@5
             inputs:
-              targetType: "inline"
-              script: |
+              azureSubscription: 'ServiceConnection'
+              ScriptType: 'InlineScript'
+              Inline: |
                 # Install required module
-                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery -Force
+                Install-Module -Name dbatools -Scope CurrentUser -Force
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
@@ -196,13 +198,24 @@ stages:
                 $userName = "$(adminSqlLogin)"
                 $password = "$(adminSqlPassword)"
 
+                # Get current hosted agent ip
+                $ip = Invoke-RestMethod http://ipinfo.io/json | Select-Object -ExpandProperty ip
+
+                # Temporary add ip
+                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'TemporaryRule_AzureDevOps' -ServerName $(azSQLServerName) -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
+                if ($azSqlFirwallRule) {
+                  Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                }
+                New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
+                    -ServerName $(azSQLServerName) `
+                    -FirewallRuleName "TemporaryRule_AzureDevOps" -StartIpAddress $ip -EndIpAddress $ip
+
                 # Specify the data for container
                 $Data = @{
-                    instance = $instance
-                    database = $database
-                    userName = $userName
-                    password = $password
-                    procedureName = 'AddInventoryRecords'
+                  sqlServerName = $instance
+                  sqlDatabaseName = $database
+                  sqlAdministrator = $userName
+                  sqlPassword = $password
                 }
                 
                 # Create container
@@ -210,6 +223,12 @@ stages:
 
                 # Invoke with CI
                 Invoke-Pester -Container $Container -CI
+
+                # Remove the temporary firewall rule
+                Remove-AzSqlServerFirewallRule -ServerName $(azSQLServerName) -FirewallRuleName 'TemporaryRule_AzureDevOps' -ResourceGroupName $(rgName)
+                
+              azurePowerShellVersion: 'LatestVersion'
+                 
           - task: PublishTestResults@2
             inputs:
               testResultsFormat: 'NUnit'
