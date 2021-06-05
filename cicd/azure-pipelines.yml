@@ -11,7 +11,7 @@ name: $(majorVersion).$(minorVersion).$(patch)
 variables:
   rgName: "rg-dbaautomation"          #   The Resource Group name     #  
   rgLocation: "westeurope"            #   The region location         #
-  ip: ""                              #   The public IP address       # 
+  ip: "84.107.159.55"                 #   The public IP address       # 
   azSqlDatabaseName: "Estate"         #   The Azure SQL database name #
   azSQLServerName: "sqlestate"        #   The Azure SQL server name   #
   adminSqlLogin: "SqlAdministrator"   #   The Azure SQL login         #
