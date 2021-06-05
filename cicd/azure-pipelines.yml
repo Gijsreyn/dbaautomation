@@ -49,35 +49,19 @@ stages:
               azureSubscription: "ServiceConnection"
               ScriptType: "InlineScript"
               Inline: |
-                $rg = Get-AzResourceGroup -Name $(rgName) -ErrorAction SilentlyContinue
-                if (-not $rg) {
-                    New-AzResourceGroup -Name $(rgName) -Location "$(rgLocation)"
-                }
-                                                
-                $azSQLServerName = "$(azSQLServerName)"
-                $azSqlServer = Get-AzSqlServer -ServerName $azSQLServerName 
-                if (-not $azSqlServer) {
-                    $azSqlServer = New-AzSqlServer -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -Location "$(rgLocation)" `
-                    -SqlAdministratorCredentials $(New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $(adminSqlLogin), $(ConvertTo-SecureString -String $(adminSqlpassword) -AsPlainText -Force))
-                }
-                
-                $azSqlFirwallRule = Get-AzSqlServerFirewallRule -FirewallRuleName 'FirewallRule_AccessRule' -ServerName $azSqlServerName -ResourceGroupName $(rgName) -ErrorAction SilentlyContinue
-                if (-not $azSqlFirwallRule) {
-                    # Create a server firewall rule that allows access from the specified IP range
-                    $serverFirewallRule = New-AzSqlServerFirewallRule -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -FirewallRuleName "FirewallRule_AccessRule" -StartIpAddress $(ip) -EndIpAddress $(ip)
-                }
-                                
-                $azSqlDatabase = Get-AzSqlDatabase -DatabaseName $(azSqlDatabaseName) -ServerName $azSQLServerName -ResourceGroupName $(rgName) -ErrorAction  SilentlyContinue
-                if (-not $azSqlDatabase) {
-                    $database = New-AzSqlDatabase  -ResourceGroupName $(rgName) `
-                    -ServerName $azSQLServerName `
-                    -DatabaseName $(azSqlDatabaseName) `
-                    -Edition "Basic"    
-                }
+                  # Dot source the script to load the function
+                  . ./psscripts/New-AzureSqlDatabase.ps1
+
+                  # Specify the parameters for the script
+                  $params = @{
+                  resourceGroupName = '$(rgName)'
+                  sqlServerName = '$(azSQLServerName)'
+                  sqlDatabaseName = '$(azSqlDatabaseName)'
+                  publicIP = '$(ip)'
+                  sqlAdministrator = '$(adminSqlLogin)'
+                  sqlPassword = '$(adminSqlPassword)'
+                  }
+                  New-AzureSqlDatabase @params
               azurePowerShellVersion: "LatestVersion"
 ##########################################################################
 #                                                                        #
