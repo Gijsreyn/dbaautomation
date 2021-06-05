@@ -204,7 +204,7 @@ stages:
               targetType: "inline"
               script: |
                 # Install required module
-                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery
+                Install-Module -Name dbatools -Scope CurrentUser -Repository PSGallery -Force
                 
                 # Initiate variables
                 $instance = "$(azSqlServerName)" + ".database.windows.net"
