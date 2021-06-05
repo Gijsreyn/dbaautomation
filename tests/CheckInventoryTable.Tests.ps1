@@ -23,11 +23,13 @@ param (
 
 
 Describe "Check inventory table" {
-    It "Gets inventory table records" {
+    BeforeAll {
         $credPwd = ConvertTo-SecureString $sqlPassword -AsPlainText -Force
         $credential = New-Object System.Management.Automation.PSCredential ($sqlAdministrator, $credPwd)
         $query = "SELECT [ServerName], [Description] FROM dbo.DatabaseInventory"
         $result = Invoke-DbaQuery -SqlInstance $sqlServerName -Database $sqlDatabaseName -SqlCredential $credential -Query $query
+    }
+    It "Gets inventory table record" {
         $result.Count | Should -BeGreaterOrEqual 1
     }
 }
